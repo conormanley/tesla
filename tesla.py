@@ -100,7 +100,7 @@ class Thermoformer(object):
 		
 	def run(self, env):
 		while True:		
-			yield env.timeout(normal(loc=G.THERMOFORMER_RUNTIME, scale=G.THERMOFORMER_RUNTIME_STDEV))
+			yield env.timeout(max(0, normal(loc=G.THERMOFORMER_RUNTIME, scale=G.THERMOFORMER_RUNTIME_STDEV)))
 			with self.station.request(priority=0) as st:
 				yield st
 				self.cycles += 1
@@ -162,7 +162,7 @@ class Load_Station(object):
 			try:
 				with operator.request() as opr:
 					yield opr
-					yield env.timeout(normal(loc=G.LOAD_STATION_UNLOAD_TIME, scale=G.LOAD_STATION_UNLOAD_TIME_STDEV))
+					yield env.timeout(max(0, normal(loc=G.LOAD_STATION_UNLOAD_TIME, scale=G.LOAD_STATION_UNLOAD_TIME_STDEV)))
 					#print("{0} unloaded a formed sheet at {1}".format(self.name, env.now))
 					self.status = 'EMPTY'
 			except simpy.Interrupt as interrupt:
@@ -176,7 +176,7 @@ class Load_Station(object):
 			try:
 				with operator.request() as opr:
 					yield opr
-					yield env.timeout(normal(loc=G.LOAD_STATION_LOAD_TIME, scale=G.LOAD_STATION_LOAD_TIME_STDEV))
+					yield env.timeout(max(0, normal(loc=G.LOAD_STATION_LOAD_TIME, scale=G.LOAD_STATION_LOAD_TIME_STDEV)))
 					yield self.capacity.put(1)
 					#print("{0} loaded a sheet at {1}".format(self.name, env.now))
 					if self.capacity.level == G.LOAD_STATION_CAPACITY:
@@ -202,7 +202,7 @@ class Splitter(object):
 			yield self.raw_stock.get(G.SPLITTER_CAPACITY)
 			with operator.request() as opr:
 				yield opr
-				yield env.timeout(normal(loc=G.SPLITTER_RUNTIME, scale=G.SPLITTER_RUNTIME_STDEV))
+				yield env.timeout(max(0, normal(loc=G.SPLITTER_RUNTIME, scale=G.SPLITTER_RUNTIME_STDEV)))
 				self.parts += G.SPLITTER_YIELD
 			yield self.finished_stock.put(G.SPLITTER_YIELD)
 			#print("{0} split a sheet at {1}".format(self.name, env.now))
@@ -223,7 +223,7 @@ class Hotwire_Trimmer(object):
 			yield self.raw_stock.get(G.TRIMMER_CAPACITY)
 			with operator.request() as opr:
 				yield opr
-				yield env.timeout(normal(loc=G.TRIMMER_RUNTIME, scale=G.TRIMMER_RUNTIME_STDEV))
+				yield env.timeout(max(0, normal(loc=G.TRIMMER_RUNTIME, scale=G.TRIMMER_RUNTIME_STDEV)))
 				self.parts += G.TRIMMER_YIELD
 			yield self.finished_stock.put(G.TRIMMER_YIELD)
 			#print("{0} trimmed a part at {1}".format(self.name, env.now))
@@ -244,7 +244,7 @@ class Driller(object):
 			yield self.raw_stock.get(G.DRILLER_CAPACITY)
 			with operator.request() as opr:
 				yield opr
-				yield env.timeout(normal(loc=G.DRILLER_RUNTIME, scale=G.DRILLER_RUNTIME_STDEV))
+				yield env.timeout(max(0, normal(loc=G.DRILLER_RUNTIME, scale=G.DRILLER_RUNTIME_STDEV)))
 				self.parts += G.DRILLER_YIELD
 			yield self.finished_stock.put(G.DRILLER_YIELD)
 			#print("{0} drilled a part at {1}".format(self.name, env.now))
@@ -271,7 +271,7 @@ class Router(object):
 				yield env.process(self.unload_part(self.operator, self.env))
 			
 			if self.status == 'READY':
-				yield env.timeout(normal(loc=G.ROUTER_RUNTIME, scale=G.ROUTER_RUNTIME_STDEV))
+				yield env.timeout(max(0, normal(loc=G.ROUTER_RUNTIME, scale=G.ROUTER_RUNTIME_STDEV)))
 				self.parts += G.ROUTER_YIELD
 				#print("{0} completed a part at {1}".format(self.name, env.now))
 				self.status = 'COMPLETE'
@@ -279,14 +279,14 @@ class Router(object):
 	def unload_part(self, operator, env):
 		with operator.request() as opr:
 			yield opr
-			yield env.timeout(normal(loc=G.ROUTER_UNLOAD_TIME, scale=G.ROUTER_UNLOAD_TIME_STDEV))
+			yield env.timeout(max(0, normal(loc=G.ROUTER_UNLOAD_TIME, scale=G.ROUTER_UNLOAD_TIME_STDEV)))
 			#print("{0} unloaded a part at {1}".format(self.name, env.now))
 			self.status = 'EMPTY'
 	
 	def load_part(self, operator, env):
 		with operator.request() as opr:
 			yield opr
-			yield env.timeout(normal(loc=G.ROUTER_LOAD_TIME, scale=G.ROUTER_LOAD_TIME_STDEV))
+			yield env.timeout(max(0, normal(loc=G.ROUTER_LOAD_TIME, scale=G.ROUTER_LOAD_TIME_STDEV)))
 			#print("{0} loaded a part at {1}".format(self.name, env.now))
 			self.status = 'READY'
 
@@ -308,7 +308,7 @@ class Sheeter(object):
 				self.unload_part(self.operator, self.env)
 			
 			if self.status == 'READY':
-				yield env.timeout(normal(loc=G.SHEETER_RUNTIME, scale=G.SHEETER_RUNTIME_STDEV))
+				yield env.timeout(max(0, normal(loc=G.SHEETER_RUNTIME, scale=G.SHEETER_RUNTIME_STDEV)))
 				self.sheets += 1
 				#print("{0} completed a sheet at {1}".format(self.name, env.now))
 				self.status = 'COMPLETE'
@@ -337,7 +337,7 @@ class Boxer(object):
 			if self.status == 'READY':
 				yield self.raw_stock.get(1)
 				with self.operator.request() as opr:
-					yield self.env.timeout(normal(loc=G.BOX_PACKTIME, scale=G.BOX_PACKTIME_STDEV))
+					yield self.env.timeout(max(0, normal(loc=G.BOX_PACKTIME, scale=G.BOX_PACKTIME_STDEV)))
 				yield self.finished_stock.put(1)
 			
 			if self.finished_stock.level == self.finished_stock.capacity:
@@ -346,13 +346,13 @@ class Boxer(object):
 	def build_box(self):
 		with self.operator.request() as opr:
 			yield opr
-			yield self.env.timeout(normal(loc=G.BOX_BUILDTIME, scale=G.BOX_BUILDTIME_STDEV))
+			yield self.env.timeout(max(0, normal(loc=G.BOX_BUILDTIME, scale=G.BOX_BUILDTIME_STDEV)))
 			self.status = 'READY'
 	
 	def close_box(self):
 		with self.operator.request() as opr:
 			yield opr
-			yield self.env.timeout(normal(loc=G.BOX_CLOSETIME, scale=G.BOX_CLOSETIME_STDEV))
+			yield self.env.timeout(max(0, normal(loc=G.BOX_CLOSETIME, scale=G.BOX_CLOSETIME_STDEV)))
 			self.status = 'NO BOX'
 		self.boxes += 1
 		#print('Finished box number {0}'.format(self.boxes))

@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import simpy
 from simpy.events import AnyOf, AllOf, Event
 import time
@@ -14,7 +16,7 @@ class G:
 	
 	#Operator constants
 	MAIN_OPERATORS = 1
-	SUPPORT_OPERATORS = 1
+	SUPPORT_OPERATORS = 2
 	
 	#Equipment constants
 	SHEETER_RUNTIME = 22.61
@@ -63,10 +65,10 @@ class G:
 	BOX_CLOSETIME_STDEV = 2
 	
 	#Container constants
-	SPLIT_FORMED_STOCK_SIZE = 2
-	RAW_SHEET_STOCK_SIZE = 2
+	SPLIT_FORMED_STOCK_SIZE = 4
+	RAW_SHEET_STOCK_SIZE = 4
 	FORMED_SHEET_STOCK_SIZE = 10000
-	ROUTED_PART_STOCK_SIZE = 10
+	ROUTED_PART_STOCK_SIZE = 12
 	TRIMMED_PART_STOCK_SIZE = 2
 	FINISHED_PART_STOCK_SIZE = 1
 	BOX_SIZE = 20
@@ -390,8 +392,7 @@ def main(user_input=False):
 	#Robotic Routers
 	router_one = Router('Router 1', env, main_ops, split_formed_stock, routed_part_stock)
 	router_two = Router('Router 2', env, sup_ops, split_formed_stock, routed_part_stock)
-	#router_three = Router('Router 3', env, sup_ops, split_formed_stock, routed_part_stock)
-
+	router_three = Router('Router 3', env, sup_ops, split_formed_stock, routed_part_stock)
 
 	#Hotwire Trimmer
 	trimmer_one = Hotwire_Trimmer('Hotwire trimmer 1', env, sup_ops, routed_part_stock, trimmed_part_stock)
@@ -408,28 +409,46 @@ def main(user_input=False):
 		print('{0} produced {1} sheets'.format(sheeter_one.name, sheeter_one.sheets))
 		print('{0} produced {1} parts'.format(router_one.name, router_one. parts))
 		print('{0} produced {1} parts'.format(router_two.name, router_two. parts))
-		#print('{0} produced {1} parts'.format(router_three.name, router_three. parts))
+		print('{0} produced {1} parts'.format(router_three.name, router_three. parts))
 		print('{0} produced {1} parts'.format(trimmer_one.name, trimmer_one.parts))
 		print('{0} produced {1} parts'.format(driller_one.name, driller_one.parts))
 		print('{0} produced {1} boxes'.format(boxer_one.name, boxer_one.boxes))
 		print('{0} missed {1} of {2} total cycles'.format(thermoformer_one.name, thermoformer_one.failures, thermoformer_one.cycles))
 		print('Effecitve cycle: {0: .1f}s, Average production rate: {1: .1f} parts/hr'.format(G.SIMULATION_TIME / (driller_one.parts / 2), driller_one.parts / (G.SIMULATION_TIME / 3600)))
 	
-	return driller_one.parts
+	wip = formed_sheet_stock.level * 2 + split_formed_stock.level + routed_part_stock.level + trimmed_part_stock.level + finished_part_stock.level
+	
+	return driller_one.parts, thermoformer_one.failures, wip
 
 
-def cost_plot(cycle_times_arr, cost_arr, pcs_arr, title=None):
-	plt.subplot(121)
+def cost_plot(cycle_times_arr, cost_arr, pcs_arr, failures, wip, best, title=None):
+	plt.subplot(221)
 	plt.plot(cycle_times_arr, cost_arr)
+	plt.axvline(x=best, color='r', linestyle='dashed')
 	plt.ylabel("Annual Cost")
 	plt.xlabel("Cycle Times")
 	
 	if title != None:
 		plt.suptitle(title)
 	
-	plt.subplot(122)
-	plt.plot(cycle_times_arr, pcs_arr, linestyle='dashed')
+	plt.subplot(222)
+	plt.plot(cycle_times_arr, pcs_arr)
+	plt.axvline(x=best, color='r', linestyle='dashed')
 	plt.ylabel("Pieces Produced per {0}s".format(G.SIMULATION_TIME))
+	plt.xlabel("Cycle Times")
+
+
+	plt.subplot(223)
+	plt.plot(cycle_times_arr, failures)
+	plt.axvline(x=best, color='r', linestyle='dashed')
+	plt.ylabel("Number of failed cycles")
+	plt.xlabel("Cycle Times")
+	
+
+	plt.subplot(224)
+	plt.plot(cycle_times_arr, wip)
+	plt.axvline(x=best, color='r', linestyle='dashed')
+	plt.ylabel("WIP in cell (pcs)")
 	plt.xlabel("Cycle Times")
 	
 	plt.subplots_adjust(left=0.2, wspace=0.8, top=0.8)
@@ -440,6 +459,9 @@ def cost_plot(cycle_times_arr, cost_arr, pcs_arr, title=None):
 		time.sleep(1)
 		plt.close()
 
+def best_function(pcs, wip, cost, failures):
+	#Weights the results of the simulation, higher is better
+	return 960000 / cost * 1.5 + pcs / 600 * .01 + 1 / (wip + 1) * .01 + 1 / (failures + 1) * .01
 
 def cost_sim():
 	MIN_CYCLE = 45
@@ -447,28 +469,35 @@ def cost_sim():
 	STEP_SIZE = (G.THERMOFORMER_RUNTIME - MIN_CYCLE) / 100
 	cycle_times_arr = []
 	pcs_arr = []
+	failures_arr = []
+	wip_arr = []
 	cost_arr = []
 	best_cost = 0
+	best_cost_factor = 0
 	labor_cost = G.SIMULATION_TIME / 3600 * (G.MACHINE_RATE + G.OVERHEAD_RATE 
 						+ (G.MAIN_OPERATORS + G.SUPPORT_OPERATORS) * G.OPERATOR_RATE)
 	
 	for i in range(STEP_COUNT):
-		pcs = main()
+		pcs, failures, wip = main()
 		pcs_arr.append(pcs)
+		failures_arr.append(failures)
+		wip_arr.append(wip)
 		cycle_times_arr.append(G.THERMOFORMER_RUNTIME)
 		G.THERMOFORMER_RUNTIME -= STEP_SIZE
 		run_cost = pcs * (G.SHEET_COST + G.BOX_COST) + labor_cost
 		print("run_cost: {0} pcs: {1}".format(run_cost, pcs))
-		annual_cost = G.EAU / pcs * run_cost
-		if annual_cost < best_cost or best_cost == 0:
+		annual_cost = G.EAU / max(1, pcs) * run_cost
+		cost_factor = best_function(pcs, wip, annual_cost, failures)
+		if cost_factor > best_cost_factor or best_cost == 0:
 			best = G.THERMOFORMER_RUNTIME
 			best_cost = annual_cost
+			best_cost_factor = cost_factor
 		
 		cost_arr.append(annual_cost)		
 	#print("Cycles:\n{0}".format(cycle_times_arr))
 	#print("PCS:\n{0}".format(pcs_arr))
 	#print("Costs:\n{0}".format(cost_arr))
-	cost_plot(cycle_times_arr, cost_arr, pcs_arr, title="Tesla Monark Simulation Results (2 Oprs, 2 Robots) - Ideal Rate: {0: 0.0f}s, Annual Cost: ${1: 0.0f}".format(best, best_cost))
+	cost_plot(cycle_times_arr, cost_arr, pcs_arr, failures_arr, wip_arr, best, title="Tesla Monark Simulation Results (3 Oprs, 3 Robots) - Ideal Rate: {0: 0.0f}s, Annual Cost: ${1: 0.0f}".format(best, best_cost))
 		
 		
 

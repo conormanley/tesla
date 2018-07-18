@@ -9,6 +9,11 @@ class G:
 	#Environment constants
 	SIMULATION_TIME = 10000
 	
+	#Operator constants
+	MAIN_OPERATORS = 1
+	SUPPORT_OPERATORS = 1
+	
+	#Equipment constants
 	ROUTER_CAPACITY = 1
 	ROUTER_RUNTIME = 90
 	ROUTER_LOAD_TIME = 10
@@ -19,7 +24,7 @@ class G:
 	SHEETER_YIELD = 1
 	
 	THERMOFORMER_YIELD = 1
-	THERMOFORMER_RUNTIME = 131
+	THERMOFORMER_RUNTIME = 90
 	
 	SPLITTER_CAPACITY = 1
 	SPLITTER_RUNTIME = 8
@@ -37,17 +42,23 @@ class G:
 	LOAD_STATION_UNLOAD_TIME = 7
 	LOAD_STATION_CAPACITY = 2
 	
+	BOX_BUILDTIME = 15
+	BOX_PACKTIME = 6
+	BOX_CLOSETIME = 19
+	
+	#Container constants
 	SPLIT_FORMED_STOCK_SIZE = 2
 	RAW_SHEET_STOCK_SIZE = 2
 	FORMED_SHEET_STOCK_SIZE = 10000
-	ROUTED_PART_STOCK_SIZE = 1000
-	TRIMMED_PART_STOCK_SIZE = 1000
-	FINISHED_PART_STOCK_SIZE = 1000
+	ROUTED_PART_STOCK_SIZE = 10
+	TRIMMED_PART_STOCK_SIZE = 2
+	FINISHED_PART_STOCK_SIZE = 1
+	BOX_SIZE = 20
 	
 
 class Operator(simpy.Resource):
-	def __init__(self, env):
-		super(Operator, self).__init__(env, capacity=1)
+	def __init__(self, env, capacity):
+		super(Operator, self).__init__(env, capacity=capacity)
 		self.env = env
 
 
@@ -282,6 +293,47 @@ class Sheeter(object):
 	def unload_part(self, operator, env):
 		print("{0} unloaded a sheet at {1}".format(self.name, env.now))
 		self.status = 'READY'
+		
+
+class Boxer(object):
+	def __init__(self, name, env, operator, raw_stock, finished_stock):
+		self.raw_stock = raw_stock
+		self.finished_stock = finished_stock
+		self.name = name
+		self.env = env
+		self.operator = operator
+		self.boxes = 0
+		self.status = 'NO BOX'
+		self.process = env.process(self.run())
+	
+	def run(self):
+		while True:
+			if self.status == 'NO BOX':
+				yield env.process(self.build_box())
+			
+			if self.status == 'READY':
+				yield self.raw_stock.get(1)
+				with self.operator.request() as opr:
+					yield env.timeout(G.BOX_PACKTIME)
+				yield self.finished_stock.put(1)
+			
+			if self.finished_stock.level == self.finished_stock.capacity:
+				yield env.process(self.close_box())
+			
+	def build_box(self):
+		with self.operator.request() as opr:
+			yield opr
+			yield env.timeout(G.BOX_BUILDTIME)
+			self.status = 'READY'
+	
+	def close_box(self):
+		with self.operator.request() as opr:
+			yield opr
+			yield env.timeout(G.BOX_CLOSETIME)
+			self.status = 'NO BOX'
+		self.boxes += 1
+		print('Finished box number {0}'.format(self.boxes))
+		self.finished_stock.get(self.finished_stock.level)
 
 
 
@@ -289,8 +341,8 @@ class Sheeter(object):
 env = simpy.Environment()
 
 #Operators
-main_ops = Operator(env)
-sup_ops = Operator(env)
+main_ops = Operator(env, G.MAIN_OPERATORS)
+sup_ops = Operator(env, G.SUPPORT_OPERATORS)
 
 #Containers
 formed_sheet_stock = simpy.Container(env, G.FORMED_SHEET_STOCK_SIZE, init=0)
@@ -299,6 +351,7 @@ routed_part_stock = simpy.Container(env, G.ROUTED_PART_STOCK_SIZE, init=0)
 trimmed_part_stock = simpy.Container(env, G.TRIMMED_PART_STOCK_SIZE, init=0)
 raw_sheet_stock = simpy.Container(env, G.RAW_SHEET_STOCK_SIZE, init=0)
 finished_part_stock = simpy.Container(env, G.FINISHED_PART_STOCK_SIZE, init=0)
+box = simpy.Container(env, G.BOX_SIZE, init=0)
 
 #Thermoformers
 station = simpy.PreemptiveResource(env, capacity=1)
@@ -314,6 +367,8 @@ sheeter_one = Sheeter('Sheeter 1', env, main_ops, raw_sheet_stock)
 #Robotic Routers
 router_one = Router('Router 1', env, main_ops, split_formed_stock, routed_part_stock)
 router_two = Router('Router 2', env, sup_ops, split_formed_stock, routed_part_stock)
+router_three = Router('Router 3', env, sup_ops, split_formed_stock, routed_part_stock)
+
 
 #Hotwire Trimmer
 trimmer_one = Hotwire_Trimmer('Hotwire trimmer 1', env, sup_ops, routed_part_stock, trimmed_part_stock)
@@ -321,11 +376,18 @@ trimmer_one = Hotwire_Trimmer('Hotwire trimmer 1', env, sup_ops, routed_part_sto
 #Driller
 driller_one = Driller('Driller 1', env, sup_ops, trimmed_part_stock, finished_part_stock)
 
+#Boxer
+boxer_one = Boxer('Boxer 1', env, sup_ops, finished_part_stock, box)
+
 env.run(until=G.SIMULATION_TIME)
+print('\n\nResults:')
 print('{0} produced {1} sheets'.format(sheeter_one.name, sheeter_one.sheets))
-print('{0} produced {1} parts and {2} produced {3} parts.'.format(router_one.name, router_one. parts, router_two.name, router_two.parts))
+print('{0} produced {1} parts'.format(router_one.name, router_one. parts))
+print('{0} produced {1} parts'.format(router_two.name, router_two. parts))
+print('{0} produced {1} parts'.format(router_three.name, router_three. parts))
 print('{0} produced {1} parts'.format(trimmer_one.name, trimmer_one.parts))
 print('{0} produced {1} parts'.format(driller_one.name, driller_one.parts))
+print('{0} produced {1} boxes'.format(boxer_one.name, boxer_one.boxes))
 print('{0} missed {1} of {2} total cycles'.format(thermoformer_one.name, thermoformer_one.failures, thermoformer_one.cycles))
 
 

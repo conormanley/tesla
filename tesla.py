@@ -89,8 +89,7 @@ class Setting(object):
 		if self.cost == 0:
 			return
 		#Annual revenue is 960,000 and cost is heaviest, followed by number of failures
-		self.cost_factor = (960000 / self.cost * 1.5 + 1 / (self.wip + 10) * .01 
-										+ 1 / (self.failures + 1) * .02)
+		self.cost_factor = (960000 / self.cost * 1.5 + 1 / (self.wip + 10) * .01 + 1 / (self.failures + 1) * .02)
 	
 	def print_out(self):
 		print("""Results for a {0}s run:
@@ -98,8 +97,7 @@ class Setting(object):
 	Annual cost to run: {2: .0f}
 	Pieces produced: {3}
 	Cycle failures: {4}
-	Remaining WIP in the cell: {5}""".format(G.SIMULATION_TIME, self.cycle, self.cost, self.pcs, 
-																			 self.failures, self.wip))
+	Remaining WIP in the cell: {5}""".format(G.SIMULATION_TIME, self.cycle, self.cost, self.pcs, self.failures, self.wip))
 
 
 def cost_sim(user_input=False):
@@ -128,7 +126,7 @@ def cost_sim(user_input=False):
 		if new_setting.cost_factor > best_setting.cost_factor:
 			best_setting = new_setting
 		
-		print("run_cost: {0} pcs: {1}".format(run_cost, pcs))
+		print("Run {0} of {1},  run_cost: {2} pcs: {3}".format(i, STEP_COUNT, run_cost, pcs))
 		G.THERMOFORMER_RUNTIME -= STEP_SIZE
 		
 	best_setting.print_out()

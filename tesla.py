@@ -10,8 +10,7 @@ class G:
 	#Environment constants
 	SIMULATION_TIME = 50000
 	EAU = 120000
-	PROGRAM_LIFE = 3
-	seed(seed=23)
+	seed(seed=10)
 	
 	#Operator constants
 	MAIN_OPERATORS = 1
@@ -28,7 +27,7 @@ class G:
 	ROUTER_LOAD_TIME = 10.97
 	ROUTER_LOAD_TIME_STDEV = 1.19
 	ROUTER_UNLOAD_TIME = 17.43
-	ROUTER_UNLOAD_TIME_STDEV = 2.46
+	ROUTER_UNLOAD_TIME_STDEV = 5.46
 	ROUTER_YIELD = 1
 	
 	LOAD_STATION_LOAD_TIME = 15
@@ -42,24 +41,24 @@ class G:
 	THERMOFORMER_RUNTIME_STDEV = 0.50
 	
 	SPLITTER_CAPACITY = 1
-	SPLITTER_RUNTIME = 8
-	SPLITTER_RUNTIME_STDEV = 1
+	SPLITTER_RUNTIME = 8.58
+	SPLITTER_RUNTIME_STDEV = 0.75
 	SPLITTER_YIELD = 2
 	
 	TRIMMER_CAPACITY = 1
 	TRIMMER_RUNTIME = 24.29
-	TRIMMER_RUNTIME_STDEV = 2.30
+	TRIMMER_RUNTIME_STDEV = 4.30
 	TRIMMER_YIELD = 1
 	
 	DRILLER_CAPACITY = 1
 	DRILLER_RUNTIME = 11.97
-	DRILLER_RUNTIME_STDEV = 1.58
+	DRILLER_RUNTIME_STDEV = 2.58
 	DRILLER_YIELD = 1
 	
 	BOX_BUILDTIME = 15
 	BOX_BUILDTIME_STDEV = 2
 	BOX_PACKTIME = 12.06
-	BOX_PACKTIME_STDEV = 1.55
+	BOX_PACKTIME_STDEV = 2.55
 	BOX_CLOSETIME = 33
 	BOX_CLOSETIME_STDEV = 2
 	
@@ -73,7 +72,8 @@ class G:
 	BOX_SIZE = 20
 	
 	#Costs
-	SHEET_COST = 2.56826 #USD/sheet
+	SHEET_COST = 2.56826 * 2 #USD/sheet
+	BOX_COST = .51675 #USD/part
 	OPERATOR_RATE = 18.00 #USD/hr
 	MACHINE_RATE = 14.78 #USD/hr
 	OVERHEAD_RATE = 19.4964 # USD/hr
@@ -162,7 +162,7 @@ class Load_Station(object):
 			try:
 				with operator.request() as opr:
 					yield opr
-					yield env.timeout(max(0, normal(loc=G.LOAD_STATION_UNLOAD_TIME, scale=G.LOAD_STATION_UNLOAD_TIME_STDEV)))
+					yield env.timeout(max(5, normal(loc=G.LOAD_STATION_UNLOAD_TIME, scale=G.LOAD_STATION_UNLOAD_TIME_STDEV)))
 					#print("{0} unloaded a formed sheet at {1}".format(self.name, env.now))
 					self.status = 'EMPTY'
 			except simpy.Interrupt as interrupt:
@@ -176,7 +176,7 @@ class Load_Station(object):
 			try:
 				with operator.request() as opr:
 					yield opr
-					yield env.timeout(max(0, normal(loc=G.LOAD_STATION_LOAD_TIME, scale=G.LOAD_STATION_LOAD_TIME_STDEV)))
+					yield env.timeout(max(7.5, normal(loc=G.LOAD_STATION_LOAD_TIME, scale=G.LOAD_STATION_LOAD_TIME_STDEV)))
 					yield self.capacity.put(1)
 					#print("{0} loaded a sheet at {1}".format(self.name, env.now))
 					if self.capacity.level == G.LOAD_STATION_CAPACITY:
@@ -202,7 +202,7 @@ class Splitter(object):
 			yield self.raw_stock.get(G.SPLITTER_CAPACITY)
 			with operator.request() as opr:
 				yield opr
-				yield env.timeout(max(0, normal(loc=G.SPLITTER_RUNTIME, scale=G.SPLITTER_RUNTIME_STDEV)))
+				yield env.timeout(max(5, normal(loc=G.SPLITTER_RUNTIME, scale=G.SPLITTER_RUNTIME_STDEV)))
 				self.parts += G.SPLITTER_YIELD
 			yield self.finished_stock.put(G.SPLITTER_YIELD)
 			#print("{0} split a sheet at {1}".format(self.name, env.now))
@@ -223,7 +223,7 @@ class Hotwire_Trimmer(object):
 			yield self.raw_stock.get(G.TRIMMER_CAPACITY)
 			with operator.request() as opr:
 				yield opr
-				yield env.timeout(max(0, normal(loc=G.TRIMMER_RUNTIME, scale=G.TRIMMER_RUNTIME_STDEV)))
+				yield env.timeout(max(10, normal(loc=G.TRIMMER_RUNTIME, scale=G.TRIMMER_RUNTIME_STDEV)))
 				self.parts += G.TRIMMER_YIELD
 			yield self.finished_stock.put(G.TRIMMER_YIELD)
 			#print("{0} trimmed a part at {1}".format(self.name, env.now))
@@ -244,7 +244,7 @@ class Driller(object):
 			yield self.raw_stock.get(G.DRILLER_CAPACITY)
 			with operator.request() as opr:
 				yield opr
-				yield env.timeout(max(0, normal(loc=G.DRILLER_RUNTIME, scale=G.DRILLER_RUNTIME_STDEV)))
+				yield env.timeout(max(5, normal(loc=G.DRILLER_RUNTIME, scale=G.DRILLER_RUNTIME_STDEV)))
 				self.parts += G.DRILLER_YIELD
 			yield self.finished_stock.put(G.DRILLER_YIELD)
 			#print("{0} drilled a part at {1}".format(self.name, env.now))
@@ -279,14 +279,14 @@ class Router(object):
 	def unload_part(self, operator, env):
 		with operator.request() as opr:
 			yield opr
-			yield env.timeout(max(0, normal(loc=G.ROUTER_UNLOAD_TIME, scale=G.ROUTER_UNLOAD_TIME_STDEV)))
+			yield env.timeout(max(10, normal(loc=G.ROUTER_UNLOAD_TIME, scale=G.ROUTER_UNLOAD_TIME_STDEV)))
 			#print("{0} unloaded a part at {1}".format(self.name, env.now))
 			self.status = 'EMPTY'
 	
 	def load_part(self, operator, env):
 		with operator.request() as opr:
 			yield opr
-			yield env.timeout(max(0, normal(loc=G.ROUTER_LOAD_TIME, scale=G.ROUTER_LOAD_TIME_STDEV)))
+			yield env.timeout(max(7, normal(loc=G.ROUTER_LOAD_TIME, scale=G.ROUTER_LOAD_TIME_STDEV)))
 			#print("{0} loaded a part at {1}".format(self.name, env.now))
 			self.status = 'READY'
 
@@ -337,7 +337,7 @@ class Boxer(object):
 			if self.status == 'READY':
 				yield self.raw_stock.get(1)
 				with self.operator.request() as opr:
-					yield self.env.timeout(max(0, normal(loc=G.BOX_PACKTIME, scale=G.BOX_PACKTIME_STDEV)))
+					yield self.env.timeout(max(4, normal(loc=G.BOX_PACKTIME, scale=G.BOX_PACKTIME_STDEV)))
 				yield self.finished_stock.put(1)
 			
 			if self.finished_stock.level == self.finished_stock.capacity:
@@ -346,13 +346,13 @@ class Boxer(object):
 	def build_box(self):
 		with self.operator.request() as opr:
 			yield opr
-			yield self.env.timeout(max(0, normal(loc=G.BOX_BUILDTIME, scale=G.BOX_BUILDTIME_STDEV)))
+			yield self.env.timeout(max(10, normal(loc=G.BOX_BUILDTIME, scale=G.BOX_BUILDTIME_STDEV)))
 			self.status = 'READY'
 	
 	def close_box(self):
 		with self.operator.request() as opr:
 			yield opr
-			yield self.env.timeout(max(0, normal(loc=G.BOX_CLOSETIME, scale=G.BOX_CLOSETIME_STDEV)))
+			yield self.env.timeout(max(20, normal(loc=G.BOX_CLOSETIME, scale=G.BOX_CLOSETIME_STDEV)))
 			self.status = 'NO BOX'
 		self.boxes += 1
 		#print('Finished box number {0}'.format(self.boxes))
@@ -390,7 +390,7 @@ def main(user_input=False):
 	#Robotic Routers
 	router_one = Router('Router 1', env, main_ops, split_formed_stock, routed_part_stock)
 	router_two = Router('Router 2', env, sup_ops, split_formed_stock, routed_part_stock)
-	router_three = Router('Router 3', env, sup_ops, split_formed_stock, routed_part_stock)
+	#router_three = Router('Router 3', env, sup_ops, split_formed_stock, routed_part_stock)
 
 
 	#Hotwire Trimmer
@@ -408,7 +408,7 @@ def main(user_input=False):
 		print('{0} produced {1} sheets'.format(sheeter_one.name, sheeter_one.sheets))
 		print('{0} produced {1} parts'.format(router_one.name, router_one. parts))
 		print('{0} produced {1} parts'.format(router_two.name, router_two. parts))
-		print('{0} produced {1} parts'.format(router_three.name, router_three. parts))
+		#print('{0} produced {1} parts'.format(router_three.name, router_three. parts))
 		print('{0} produced {1} parts'.format(trimmer_one.name, trimmer_one.parts))
 		print('{0} produced {1} parts'.format(driller_one.name, driller_one.parts))
 		print('{0} produced {1} boxes'.format(boxer_one.name, boxer_one.boxes))
@@ -421,7 +421,7 @@ def main(user_input=False):
 def cost_plot(cycle_times_arr, cost_arr, pcs_arr, title=None):
 	plt.subplot(121)
 	plt.plot(cycle_times_arr, cost_arr)
-	plt.ylabel("Program Cost")
+	plt.ylabel("Annual Cost")
 	plt.xlabel("Cycle Times")
 	
 	if title != None:
@@ -457,18 +457,18 @@ def cost_sim():
 		pcs_arr.append(pcs)
 		cycle_times_arr.append(G.THERMOFORMER_RUNTIME)
 		G.THERMOFORMER_RUNTIME -= STEP_SIZE
-		run_cost = pcs * G.SHEET_COST + labor_cost
+		run_cost = pcs * (G.SHEET_COST + G.BOX_COST) + labor_cost
 		print("run_cost: {0} pcs: {1}".format(run_cost, pcs))
-		program_cost = G.EAU * G.PROGRAM_LIFE / pcs * run_cost
-		if program_cost < best_cost or best_cost == 0:
+		annual_cost = G.EAU / pcs * run_cost
+		if annual_cost < best_cost or best_cost == 0:
 			best = G.THERMOFORMER_RUNTIME
-			best_cost = program_cost
+			best_cost = annual_cost
 		
-		cost_arr.append(program_cost)		
+		cost_arr.append(annual_cost)		
 	#print("Cycles:\n{0}".format(cycle_times_arr))
 	#print("PCS:\n{0}".format(pcs_arr))
 	#print("Costs:\n{0}".format(cost_arr))
-	cost_plot(cycle_times_arr, cost_arr, pcs_arr, title="Tesla Monark Simulation Results (2 Oprs, 3 Robots) - Ideal Rate: {0: 0.0f}s, Program Cost: ${1: 0.0f}".format(best, best_cost))
+	cost_plot(cycle_times_arr, cost_arr, pcs_arr, title="Tesla Monark Simulation Results (2 Oprs, 2 Robots) - Ideal Rate: {0: 0.0f}s, Annual Cost: ${1: 0.0f}".format(best, best_cost))
 		
 		
 

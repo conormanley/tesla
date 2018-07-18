@@ -11,40 +11,40 @@ class G:
 	
 	#Operator constants
 	MAIN_OPERATORS = 1
-	SUPPORT_OPERATORS = 1
+	SUPPORT_OPERATORS = 2
 	
 	#Equipment constants
-	ROUTER_CAPACITY = 1
-	ROUTER_RUNTIME = 90
-	ROUTER_LOAD_TIME = 10
-	ROUTER_UNLOAD_TIME = 15
-	ROUTER_YIELD = 1
-	
-	SHEETER_RUNTIME = 22
+	SHEETER_RUNTIME = 22.61
 	SHEETER_YIELD = 1
 	
+	ROUTER_CAPACITY = 1
+	ROUTER_RUNTIME = 91.29
+	ROUTER_LOAD_TIME = 10.97
+	ROUTER_UNLOAD_TIME = 17.43
+	ROUTER_YIELD = 1
+	
+	LOAD_STATION_LOAD_TIME = 15
+	LOAD_STATION_UNLOAD_TIME = 7.96
+	LOAD_STATION_CAPACITY = 2
+	
 	THERMOFORMER_YIELD = 1
-	THERMOFORMER_RUNTIME = 90
+	THERMOFORMER_RUNTIME = 80
 	
 	SPLITTER_CAPACITY = 1
 	SPLITTER_RUNTIME = 8
 	SPLITTER_YIELD = 2
 	
 	TRIMMER_CAPACITY = 1
-	TRIMMER_RUNTIME = 12
+	TRIMMER_RUNTIME = 24.29
 	TRIMMER_YIELD = 1
 	
 	DRILLER_CAPACITY = 1
-	DRILLER_RUNTIME = 8
+	DRILLER_RUNTIME = 11.97
 	DRILLER_YIELD = 1
 	
-	LOAD_STATION_LOAD_TIME = 15
-	LOAD_STATION_UNLOAD_TIME = 7
-	LOAD_STATION_CAPACITY = 2
-	
 	BOX_BUILDTIME = 15
-	BOX_PACKTIME = 6
-	BOX_CLOSETIME = 19
+	BOX_PACKTIME = 12.06
+	BOX_CLOSETIME = 33
 	
 	#Container constants
 	SPLIT_FORMED_STOCK_SIZE = 2
@@ -365,7 +365,7 @@ splitting_one = Splitter('Splitter 1', env, main_ops, formed_sheet_stock, split_
 sheeter_one = Sheeter('Sheeter 1', env, main_ops, raw_sheet_stock)
 
 #Robotic Routers
-router_one = Router('Router 1', env, main_ops, split_formed_stock, routed_part_stock)
+router_one = Router('Router 1', env, sup_ops, split_formed_stock, routed_part_stock)
 router_two = Router('Router 2', env, sup_ops, split_formed_stock, routed_part_stock)
 router_three = Router('Router 3', env, sup_ops, split_formed_stock, routed_part_stock)
 
@@ -389,5 +389,6 @@ print('{0} produced {1} parts'.format(trimmer_one.name, trimmer_one.parts))
 print('{0} produced {1} parts'.format(driller_one.name, driller_one.parts))
 print('{0} produced {1} boxes'.format(boxer_one.name, boxer_one.boxes))
 print('{0} missed {1} of {2} total cycles'.format(thermoformer_one.name, thermoformer_one.failures, thermoformer_one.cycles))
+print('Effecitve cycle: {0: .1f}s, Average production rate: {1: .1f} parts/hr'.format(G.SIMULATION_TIME / (driller_one.parts / 2), driller_one.parts / (G.SIMULATION_TIME / 3600)))
 
 

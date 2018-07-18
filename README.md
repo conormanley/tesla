@@ -3,10 +3,10 @@ Tesla work cell simulation
 
 ## Consists of the following modules
 
-  constants.py - Contains simulation parameters
-  equipment.py - Contains the classes for each machine or operation
-  plotting.py  - Contains basic plotting functions for visualization of work cell optimization
-  tesla.py     - Contains the two main functions `main()` and `cost_sim()`
+- constants.py - Contains simulation parameters
+- equipment.py - Contains the classes for each machine or operation
+- plotting.py  - Contains basic plotting functions for visualization of work cell optimization
+- tesla.py     - Contains the two main functions `main()` and `cost_sim()`
 
 ## Code Example / API Reference
 
@@ -20,7 +20,7 @@ For work cell optimization, used the `cost_sim()` function. This will print out 
   
 ## Motivation
 
-This stems from a continuous improvement effort for our Georgia plant with the focus of optimizing the work cell.
+This stems from a continuous improvement effort with the focus of optimizing the work cell.
 
 ## Installation
 
@@ -29,5 +29,6 @@ Clone this repository to your favorite folder.
 ## Tests
 
 A test case is already loaded into the tesla.py module. Run the following command through the command shell in order to fun the cost_sim() function with min_cycle=45, max_cycle=131, steps=100.
-  
-  python -m tesla.tesla
+```  
+python -m tesla.tesla
+```

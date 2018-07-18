@@ -7,7 +7,7 @@ import time
 
 class G:
 	#Environment constants
-	SIMULATION_TIME = 7200
+	SIMULATION_TIME = 10000
 	
 	ROUTER_CAPACITY = 1
 	ROUTER_RUNTIME = 90
@@ -18,17 +18,22 @@ class G:
 	SHEETER_RUNTIME = 22
 	SHEETER_YIELD = 1
 	
-	THERMOFORMER_CAPACITY = 10000
 	THERMOFORMER_YIELD = 1
 	THERMOFORMER_RUNTIME = 131
+	
+	SPLITTER_CAPACITY = 1
+	SPLITTER_RUNTIME = 8
+	SPLITTER_YIELD = 2
 	
 	LOAD_STATION_LOAD_TIME = 15
 	LOAD_STATION_UNLOAD_TIME = 7
 	LOAD_STATION_CAPACITY = 2
 	
+	SPLIT_FORMED_STOCK_SIZE = 2
 	RAW_SHEET_STOCK_SIZE = 2
-	FORMED_SHEET_STOCK_SIZE = 2
+	FORMED_SHEET_STOCK_SIZE = 10000
 	ROUTED_PART_STOCK_SIZE = 1000
+	TRIMMED_PART_STOCK_SIZE = 1000
 	
 
 class Operator(simpy.Resource):
@@ -139,6 +144,27 @@ class Load_Station(object):
 				print('load_sheet on {0} got preempted by {1} after {2}'.format(self.name, by, usage))
 
 
+class Splitter(object):
+	def __init__(self, name, env, operator, raw_stock, finished_stock):
+		self.raw_stock = raw_stock
+		self.finished_stock = finished_stock
+		self.name = name
+		self.env = env
+		self.operator = operator
+		self.parts = 0
+		self.process = env.process(self.run(self.operator, self.env))
+		
+	def run(self, operator, env):
+		while True:
+			yield self.raw_stock.get(G.SPLITTER_CAPACITY)
+			with operator.request() as opr:
+				yield opr
+				yield env.timeout(G.SPLITTER_RUNTIME)
+				self.parts += G.SPLITTER_YIELD
+			yield self.finished_stock.put(G.SPLITTER_YIELD)
+			print("{0} split a sheet at {1}".format(self.name, env.now))
+
+
 class Router(object):
 	def __init__(self, name, env, operator, raw_stock, finished_stock):
 		self.raw_stock = raw_stock
@@ -218,20 +244,25 @@ sup_ops = Operator(env)
 
 #Containers
 formed_sheet_stock = simpy.Container(env, G.FORMED_SHEET_STOCK_SIZE, init=0)
+split_formed_stock = simpy.Container(env, G.SPLIT_FORMED_STOCK_SIZE, init=0)
 routed_part_stock = simpy.Container(env, G.ROUTED_PART_STOCK_SIZE, init=0)
+trimmed_part_stock = simpy.Container(env, G.TRIMMED_PART_STOCK_SIZE, init=0)
 raw_sheet_stock = simpy.Container(env, G.RAW_SHEET_STOCK_SIZE, init=0)
 
 #Thermoformers
 station = simpy.PreemptiveResource(env, capacity=1)
 load_station_one = Load_Station('Load Station 1', env, main_ops, station, raw_sheet_stock, formed_sheet_stock)
 thermoformer_one = Thermoformer('Thermoformer 1', env, station, load_station_one)
+
+#Formed sheet splitting operation
+splitting_one = Splitter('Splitter 1', env, main_ops, formed_sheet_stock, split_formed_stock)
 	
 #Automatic Sheeters
 sheeter_one = Sheeter('Sheeter 1', env, main_ops, raw_sheet_stock)
 
 #Robotic Routers
-router_one = Router('Router 1', env, main_ops, formed_sheet_stock, routed_part_stock)
-router_two = Router('Router 2', env, sup_ops, formed_sheet_stock, routed_part_stock)
+router_one = Router('Router 1', env, main_ops, split_formed_stock, routed_part_stock)
+router_two = Router('Router 2', env, sup_ops, split_formed_stock, routed_part_stock)
 
 env.run(until=G.SIMULATION_TIME)
 print('{0} produced {1} sheets'.format(sheeter_one.name, sheeter_one.sheets))

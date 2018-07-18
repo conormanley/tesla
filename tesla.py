@@ -1,53 +1,67 @@
 import simpy
 from simpy.events import AnyOf, AllOf, Event
-from random import seed, randint
 import time
 import matplotlib
 import matplotlib.pyplot as plt
+from numpy.random import normal, seed
 
 
 class G:
 	#Environment constants
-	SIMULATION_TIME = 10000
+	SIMULATION_TIME = 50000
 	EAU = 120000
 	PROGRAM_LIFE = 3
+	seed(seed=23)
 	
 	#Operator constants
 	MAIN_OPERATORS = 1
-	SUPPORT_OPERATORS = 2
+	SUPPORT_OPERATORS = 1
 	
 	#Equipment constants
 	SHEETER_RUNTIME = 22.61
+	SHEETER_RUNTIME_STDEV = 0.67
 	SHEETER_YIELD = 1
 	
 	ROUTER_CAPACITY = 1
 	ROUTER_RUNTIME = 91.29
+	ROUTER_RUNTIME_STDEV = 0.37
 	ROUTER_LOAD_TIME = 10.97
+	ROUTER_LOAD_TIME_STDEV = 1.19
 	ROUTER_UNLOAD_TIME = 17.43
+	ROUTER_UNLOAD_TIME_STDEV = 2.46
 	ROUTER_YIELD = 1
 	
 	LOAD_STATION_LOAD_TIME = 15
+	LOAD_STATION_LOAD_TIME_STDEV = 1.02
 	LOAD_STATION_UNLOAD_TIME = 7.96
+	LOAD_STATION_UNLOAD_TIME_STDEV = 1.02
 	LOAD_STATION_CAPACITY = 2
 	
 	THERMOFORMER_YIELD = 1
 	THERMOFORMER_RUNTIME = 131
+	THERMOFORMER_RUNTIME_STDEV = 0.50
 	
 	SPLITTER_CAPACITY = 1
 	SPLITTER_RUNTIME = 8
+	SPLITTER_RUNTIME_STDEV = 1
 	SPLITTER_YIELD = 2
 	
 	TRIMMER_CAPACITY = 1
 	TRIMMER_RUNTIME = 24.29
+	TRIMMER_RUNTIME_STDEV = 2.30
 	TRIMMER_YIELD = 1
 	
 	DRILLER_CAPACITY = 1
 	DRILLER_RUNTIME = 11.97
+	DRILLER_RUNTIME_STDEV = 1.58
 	DRILLER_YIELD = 1
 	
 	BOX_BUILDTIME = 15
+	BOX_BUILDTIME_STDEV = 2
 	BOX_PACKTIME = 12.06
+	BOX_PACKTIME_STDEV = 1.55
 	BOX_CLOSETIME = 33
+	BOX_CLOSETIME_STDEV = 2
 	
 	#Container constants
 	SPLIT_FORMED_STOCK_SIZE = 2
@@ -86,7 +100,7 @@ class Thermoformer(object):
 		
 	def run(self, env):
 		while True:		
-			yield env.timeout(G.THERMOFORMER_RUNTIME)
+			yield env.timeout(normal(loc=G.THERMOFORMER_RUNTIME, scale=G.THERMOFORMER_RUNTIME_STDEV))
 			with self.station.request(priority=0) as st:
 				yield st
 				self.cycles += 1
@@ -148,7 +162,7 @@ class Load_Station(object):
 			try:
 				with operator.request() as opr:
 					yield opr
-					yield env.timeout(G.LOAD_STATION_UNLOAD_TIME)
+					yield env.timeout(normal(loc=G.LOAD_STATION_UNLOAD_TIME, scale=G.LOAD_STATION_UNLOAD_TIME_STDEV))
 					#print("{0} unloaded a formed sheet at {1}".format(self.name, env.now))
 					self.status = 'EMPTY'
 			except simpy.Interrupt as interrupt:
@@ -162,7 +176,7 @@ class Load_Station(object):
 			try:
 				with operator.request() as opr:
 					yield opr
-					yield env.timeout(G.LOAD_STATION_LOAD_TIME)
+					yield env.timeout(normal(loc=G.LOAD_STATION_LOAD_TIME, scale=G.LOAD_STATION_LOAD_TIME_STDEV))
 					yield self.capacity.put(1)
 					#print("{0} loaded a sheet at {1}".format(self.name, env.now))
 					if self.capacity.level == G.LOAD_STATION_CAPACITY:
@@ -188,7 +202,7 @@ class Splitter(object):
 			yield self.raw_stock.get(G.SPLITTER_CAPACITY)
 			with operator.request() as opr:
 				yield opr
-				yield env.timeout(G.SPLITTER_RUNTIME)
+				yield env.timeout(normal(loc=G.SPLITTER_RUNTIME, scale=G.SPLITTER_RUNTIME_STDEV))
 				self.parts += G.SPLITTER_YIELD
 			yield self.finished_stock.put(G.SPLITTER_YIELD)
 			#print("{0} split a sheet at {1}".format(self.name, env.now))
@@ -209,7 +223,7 @@ class Hotwire_Trimmer(object):
 			yield self.raw_stock.get(G.TRIMMER_CAPACITY)
 			with operator.request() as opr:
 				yield opr
-				yield env.timeout(G.TRIMMER_RUNTIME)
+				yield env.timeout(normal(loc=G.TRIMMER_RUNTIME, scale=G.TRIMMER_RUNTIME_STDEV))
 				self.parts += G.TRIMMER_YIELD
 			yield self.finished_stock.put(G.TRIMMER_YIELD)
 			#print("{0} trimmed a part at {1}".format(self.name, env.now))
@@ -230,7 +244,7 @@ class Driller(object):
 			yield self.raw_stock.get(G.DRILLER_CAPACITY)
 			with operator.request() as opr:
 				yield opr
-				yield env.timeout(G.DRILLER_RUNTIME)
+				yield env.timeout(normal(loc=G.DRILLER_RUNTIME, scale=G.DRILLER_RUNTIME_STDEV))
 				self.parts += G.DRILLER_YIELD
 			yield self.finished_stock.put(G.DRILLER_YIELD)
 			#print("{0} drilled a part at {1}".format(self.name, env.now))
@@ -257,7 +271,7 @@ class Router(object):
 				yield env.process(self.unload_part(self.operator, self.env))
 			
 			if self.status == 'READY':
-				yield env.timeout(G.ROUTER_RUNTIME)
+				yield env.timeout(normal(loc=G.ROUTER_RUNTIME, scale=G.ROUTER_RUNTIME_STDEV))
 				self.parts += G.ROUTER_YIELD
 				#print("{0} completed a part at {1}".format(self.name, env.now))
 				self.status = 'COMPLETE'
@@ -265,14 +279,14 @@ class Router(object):
 	def unload_part(self, operator, env):
 		with operator.request() as opr:
 			yield opr
-			yield env.timeout(G.ROUTER_UNLOAD_TIME)
+			yield env.timeout(normal(loc=G.ROUTER_UNLOAD_TIME, scale=G.ROUTER_UNLOAD_TIME_STDEV))
 			#print("{0} unloaded a part at {1}".format(self.name, env.now))
 			self.status = 'EMPTY'
 	
 	def load_part(self, operator, env):
 		with operator.request() as opr:
 			yield opr
-			yield env.timeout(G.ROUTER_LOAD_TIME)
+			yield env.timeout(normal(loc=G.ROUTER_LOAD_TIME, scale=G.ROUTER_LOAD_TIME_STDEV))
 			#print("{0} loaded a part at {1}".format(self.name, env.now))
 			self.status = 'READY'
 
@@ -294,7 +308,7 @@ class Sheeter(object):
 				self.unload_part(self.operator, self.env)
 			
 			if self.status == 'READY':
-				yield env.timeout(G.SHEETER_RUNTIME)
+				yield env.timeout(normal(loc=G.SHEETER_RUNTIME, scale=G.SHEETER_RUNTIME_STDEV))
 				self.sheets += 1
 				#print("{0} completed a sheet at {1}".format(self.name, env.now))
 				self.status = 'COMPLETE'
@@ -323,7 +337,7 @@ class Boxer(object):
 			if self.status == 'READY':
 				yield self.raw_stock.get(1)
 				with self.operator.request() as opr:
-					yield self.env.timeout(G.BOX_PACKTIME)
+					yield self.env.timeout(normal(loc=G.BOX_PACKTIME, scale=G.BOX_PACKTIME_STDEV))
 				yield self.finished_stock.put(1)
 			
 			if self.finished_stock.level == self.finished_stock.capacity:
@@ -332,13 +346,13 @@ class Boxer(object):
 	def build_box(self):
 		with self.operator.request() as opr:
 			yield opr
-			yield self.env.timeout(G.BOX_BUILDTIME)
+			yield self.env.timeout(normal(loc=G.BOX_BUILDTIME, scale=G.BOX_BUILDTIME_STDEV))
 			self.status = 'READY'
 	
 	def close_box(self):
 		with self.operator.request() as opr:
 			yield opr
-			yield self.env.timeout(G.BOX_CLOSETIME)
+			yield self.env.timeout(normal(loc=G.BOX_CLOSETIME, scale=G.BOX_CLOSETIME_STDEV))
 			self.status = 'NO BOX'
 		self.boxes += 1
 		#print('Finished box number {0}'.format(self.boxes))
@@ -428,7 +442,7 @@ def cost_plot(cycle_times_arr, cost_arr, pcs_arr, title=None):
 
 
 def cost_sim():
-	MIN_CYCLE = 50
+	MIN_CYCLE = 45
 	STEP_COUNT = 100
 	STEP_SIZE = (G.THERMOFORMER_RUNTIME - MIN_CYCLE) / 100
 	cycle_times_arr = []
@@ -454,12 +468,13 @@ def cost_sim():
 	#print("Cycles:\n{0}".format(cycle_times_arr))
 	#print("PCS:\n{0}".format(pcs_arr))
 	#print("Costs:\n{0}".format(cost_arr))
-	cost_plot(cycle_times_arr, cost_arr, pcs_arr, title="Tesla Monark Simulation Results (3 Oprs, 3 Robots) - Ideal Rate: {0: 0.0f}s, Program Cost: ${1: 0.0f}".format(best, best_cost))
+	cost_plot(cycle_times_arr, cost_arr, pcs_arr, title="Tesla Monark Simulation Results (2 Oprs, 3 Robots) - Ideal Rate: {0: 0.0f}s, Program Cost: ${1: 0.0f}".format(best, best_cost))
 		
 		
 
 if __name__ == '__main__':
 	cost_sim()
+
 	
 	
 	

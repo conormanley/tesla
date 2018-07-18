@@ -13,7 +13,7 @@ class G:
 	ROUTER_RUNTIME = 90
 	ROUTER_LOAD_TIME = 10
 	ROUTER_UNLOAD_TIME = 15
-	ROUTER_YIELD = 2
+	ROUTER_YIELD = 1
 	
 	SHEETER_RUNTIME = 22
 	SHEETER_YIELD = 1
@@ -25,6 +25,14 @@ class G:
 	SPLITTER_RUNTIME = 8
 	SPLITTER_YIELD = 2
 	
+	TRIMMER_CAPACITY = 1
+	TRIMMER_RUNTIME = 12
+	TRIMMER_YIELD = 1
+	
+	DRILLER_CAPACITY = 1
+	DRILLER_RUNTIME = 8
+	DRILLER_YIELD = 1
+	
 	LOAD_STATION_LOAD_TIME = 15
 	LOAD_STATION_UNLOAD_TIME = 7
 	LOAD_STATION_CAPACITY = 2
@@ -34,6 +42,7 @@ class G:
 	FORMED_SHEET_STOCK_SIZE = 10000
 	ROUTED_PART_STOCK_SIZE = 1000
 	TRIMMED_PART_STOCK_SIZE = 1000
+	FINISHED_PART_STOCK_SIZE = 1000
 	
 
 class Operator(simpy.Resource):
@@ -165,6 +174,47 @@ class Splitter(object):
 			print("{0} split a sheet at {1}".format(self.name, env.now))
 
 
+class Hotwire_Trimmer(object):
+	def __init__(self, name, env, operator, raw_stock, finished_stock):
+		self.raw_stock = raw_stock
+		self.finished_stock = finished_stock
+		self.name = name
+		self.env = env
+		self.operator = operator
+		self.parts = 0
+		self.process = env.process(self.run(self.operator, self.env))
+		
+	def run(self, operator, env):
+		while True:
+			yield self.raw_stock.get(G.TRIMMER_CAPACITY)
+			with operator.request() as opr:
+				yield opr
+				yield env.timeout(G.TRIMMER_RUNTIME)
+				self.parts += G.TRIMMER_YIELD
+			yield self.finished_stock.put(G.TRIMMER_YIELD)
+			print("{0} trimmed a part at {1}".format(self.name, env.now))
+
+
+class Driller(object):
+	def __init__(self, name, env, operator, raw_stock, finished_stock):
+		self.raw_stock = raw_stock
+		self.finished_stock = finished_stock
+		self.name = name
+		self.env = env
+		self.operator = operator
+		self.parts = 0
+		self.process = env.process(self.run(self.operator, self.env))
+		
+	def run(self, operator, env):
+		while True:
+			yield self.raw_stock.get(G.DRILLER_CAPACITY)
+			with operator.request() as opr:
+				yield opr
+				yield env.timeout(G.DRILLER_RUNTIME)
+				self.parts += G.DRILLER_YIELD
+			yield self.finished_stock.put(G.DRILLER_YIELD)
+			print("{0} drilled a part at {1}".format(self.name, env.now))
+
 class Router(object):
 	def __init__(self, name, env, operator, raw_stock, finished_stock):
 		self.raw_stock = raw_stock
@@ -248,6 +298,7 @@ split_formed_stock = simpy.Container(env, G.SPLIT_FORMED_STOCK_SIZE, init=0)
 routed_part_stock = simpy.Container(env, G.ROUTED_PART_STOCK_SIZE, init=0)
 trimmed_part_stock = simpy.Container(env, G.TRIMMED_PART_STOCK_SIZE, init=0)
 raw_sheet_stock = simpy.Container(env, G.RAW_SHEET_STOCK_SIZE, init=0)
+finished_part_stock = simpy.Container(env, G.FINISHED_PART_STOCK_SIZE, init=0)
 
 #Thermoformers
 station = simpy.PreemptiveResource(env, capacity=1)
@@ -264,9 +315,17 @@ sheeter_one = Sheeter('Sheeter 1', env, main_ops, raw_sheet_stock)
 router_one = Router('Router 1', env, main_ops, split_formed_stock, routed_part_stock)
 router_two = Router('Router 2', env, sup_ops, split_formed_stock, routed_part_stock)
 
+#Hotwire Trimmer
+trimmer_one = Hotwire_Trimmer('Hotwire trimmer 1', env, sup_ops, routed_part_stock, trimmed_part_stock)
+
+#Driller
+driller_one = Driller('Driller 1', env, sup_ops, trimmed_part_stock, finished_part_stock)
+
 env.run(until=G.SIMULATION_TIME)
 print('{0} produced {1} sheets'.format(sheeter_one.name, sheeter_one.sheets))
 print('{0} produced {1} parts and {2} produced {3} parts.'.format(router_one.name, router_one. parts, router_two.name, router_two.parts))
+print('{0} produced {1} parts'.format(trimmer_one.name, trimmer_one.parts))
+print('{0} produced {1} parts'.format(driller_one.name, driller_one.parts))
 print('{0} missed {1} of {2} total cycles'.format(thermoformer_one.name, thermoformer_one.failures, thermoformer_one.cycles))
 
 

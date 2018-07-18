@@ -100,9 +100,10 @@ class Setting(object):
 	Remaining WIP in the cell: {5}""".format(G.SIMULATION_TIME, self.cycle, self.cost, self.pcs, self.failures, self.wip))
 
 
-def cost_sim(user_input=False):
-	MIN_CYCLE = 45
-	STEP_COUNT = 100
+def cost_sim(min_cycle, max_cycle, steps, user_input=False):
+	MIN_CYCLE = min_cycle
+	G.THERMOFORMER_RUNTIME = max_cycle
+	STEP_COUNT = steps
 	STEP_SIZE = (G.THERMOFORMER_RUNTIME - MIN_CYCLE) / 100
 	cycle_times_arr = []
 	pcs_arr = []
@@ -137,7 +138,7 @@ def cost_sim(user_input=False):
 		
 
 if __name__ == '__main__':
-	best_setting = cost_sim()
+	best_setting = cost_sim(45, G.THERMOFORMER_RUNTIME, 100)
 
 	
 	

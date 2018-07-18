@@ -2,12 +2,15 @@ import simpy
 from simpy.events import AnyOf, AllOf, Event
 from random import seed, randint
 import time
-
+import matplotlib
+import matplotlib.pyplot as plt
 
 
 class G:
 	#Environment constants
 	SIMULATION_TIME = 10000
+	EAU = 120000
+	PROGRAM_LIFE = 3
 	
 	#Operator constants
 	MAIN_OPERATORS = 1
@@ -28,7 +31,7 @@ class G:
 	LOAD_STATION_CAPACITY = 2
 	
 	THERMOFORMER_YIELD = 1
-	THERMOFORMER_RUNTIME = 80
+	THERMOFORMER_RUNTIME = 131
 	
 	SPLITTER_CAPACITY = 1
 	SPLITTER_RUNTIME = 8
@@ -55,6 +58,12 @@ class G:
 	FINISHED_PART_STOCK_SIZE = 1
 	BOX_SIZE = 20
 	
+	#Costs
+	SHEET_COST = 2.56826 #USD/sheet
+	OPERATOR_RATE = 18.00 #USD/hr
+	MACHINE_RATE = 14.78 #USD/hr
+	OVERHEAD_RATE = 19.4964 # USD/hr
+	
 
 class Operator(simpy.Resource):
 	def __init__(self, env, capacity):
@@ -78,14 +87,14 @@ class Thermoformer(object):
 	def run(self, env):
 		while True:		
 			yield env.timeout(G.THERMOFORMER_RUNTIME)
-			with station.request(priority=0) as st:
+			with self.station.request(priority=0) as st:
 				yield st
 				self.cycles += 1
-				print("Ran a cycle at {0}".format(env.now))
+				#print("Ran a cycle at {0}".format(env.now))
 				if self.mold_stock.level > 0:
 					yield self.mold_stock.get(1)
 					self.load_station.status = 'COMPLETE'
-					print("{0} created a formed sheet at {1}".format(self.name, env.now))
+					#print("{0} created a formed sheet at {1}".format(self.name, env.now))
 					yield self.load_station.finished_stock.put(G.THERMOFORMER_YIELD)
 				else:
 					self.load_station.status = 'EMPTY'
@@ -93,14 +102,14 @@ class Thermoformer(object):
 				if self.oven_stock.level > 0:
 					yield self.oven_stock.get(1)
 					yield self.mold_stock.put(1)
-					print('Sheet has been put in the mold at {0}'.format(env.now))
+					#print('Sheet has been put in the mold at {0}'.format(env.now))
 				
 				if self.load_station.capacity.level == G.LOAD_STATION_CAPACITY:
-					print('Putting a sheet in the oven at {0}'.format(env.now))
+					#print('Putting a sheet in the oven at {0}'.format(env.now))
 					yield self.oven_stock.put(1)
-					print('Sheet has been put in the oven at {0}'.format(env.now))
+					#print('Sheet has been put in the oven at {0}'.format(env.now))
 				else:
-					print('FAILED TO LOAD THERMOFORMER IN TIME')
+					#print('FAILED TO LOAD THERMOFORMER IN TIME')
 					self.failures += 1
 				
 				if self.load_station.capacity.level > 0:
@@ -140,12 +149,12 @@ class Load_Station(object):
 				with operator.request() as opr:
 					yield opr
 					yield env.timeout(G.LOAD_STATION_UNLOAD_TIME)
-					print("{0} unloaded a formed sheet at {1}".format(self.name, env.now))
+					#print("{0} unloaded a formed sheet at {1}".format(self.name, env.now))
 					self.status = 'EMPTY'
 			except simpy.Interrupt as interrupt:
 				by = interrupt.cause.by
 				usage = env.now - interrupt.cause.usage_since
-				print('unload_sheet on {0} got preempted by {1} after {2}'.format(self.name, by, usage))
+				#print('unload_sheet on {0} got preempted by {1} after {2}'.format(self.name, by, usage))
 
 	def load_sheet(self, operator, env):
 		with self.station.request(priority=100) as st:
@@ -155,13 +164,13 @@ class Load_Station(object):
 					yield opr
 					yield env.timeout(G.LOAD_STATION_LOAD_TIME)
 					yield self.capacity.put(1)
-					print("{0} loaded a sheet at {1}".format(self.name, env.now))
+					#print("{0} loaded a sheet at {1}".format(self.name, env.now))
 					if self.capacity.level == G.LOAD_STATION_CAPACITY:
 						self.status = 'READY'
 			except simpy.Interrupt as interrupt:
 				by = interrupt.cause.by
 				usage = env.now - interrupt.cause.usage_since
-				print('load_sheet on {0} got preempted by {1} after {2}'.format(self.name, by, usage))
+				#print('load_sheet on {0} got preempted by {1} after {2}'.format(self.name, by, usage))
 
 
 class Splitter(object):
@@ -182,7 +191,7 @@ class Splitter(object):
 				yield env.timeout(G.SPLITTER_RUNTIME)
 				self.parts += G.SPLITTER_YIELD
 			yield self.finished_stock.put(G.SPLITTER_YIELD)
-			print("{0} split a sheet at {1}".format(self.name, env.now))
+			#print("{0} split a sheet at {1}".format(self.name, env.now))
 
 
 class Hotwire_Trimmer(object):
@@ -203,7 +212,7 @@ class Hotwire_Trimmer(object):
 				yield env.timeout(G.TRIMMER_RUNTIME)
 				self.parts += G.TRIMMER_YIELD
 			yield self.finished_stock.put(G.TRIMMER_YIELD)
-			print("{0} trimmed a part at {1}".format(self.name, env.now))
+			#print("{0} trimmed a part at {1}".format(self.name, env.now))
 
 
 class Driller(object):
@@ -224,7 +233,7 @@ class Driller(object):
 				yield env.timeout(G.DRILLER_RUNTIME)
 				self.parts += G.DRILLER_YIELD
 			yield self.finished_stock.put(G.DRILLER_YIELD)
-			print("{0} drilled a part at {1}".format(self.name, env.now))
+			#print("{0} drilled a part at {1}".format(self.name, env.now))
 
 class Router(object):
 	def __init__(self, name, env, operator, raw_stock, finished_stock):
@@ -250,21 +259,21 @@ class Router(object):
 			if self.status == 'READY':
 				yield env.timeout(G.ROUTER_RUNTIME)
 				self.parts += G.ROUTER_YIELD
-				print("{0} completed a part at {1}".format(self.name, env.now))
+				#print("{0} completed a part at {1}".format(self.name, env.now))
 				self.status = 'COMPLETE'
 
 	def unload_part(self, operator, env):
 		with operator.request() as opr:
 			yield opr
 			yield env.timeout(G.ROUTER_UNLOAD_TIME)
-			print("{0} unloaded a part at {1}".format(self.name, env.now))
+			#print("{0} unloaded a part at {1}".format(self.name, env.now))
 			self.status = 'EMPTY'
 	
 	def load_part(self, operator, env):
 		with operator.request() as opr:
 			yield opr
 			yield env.timeout(G.ROUTER_LOAD_TIME)
-			print("{0} loaded a part at {1}".format(self.name, env.now))
+			#print("{0} loaded a part at {1}".format(self.name, env.now))
 			self.status = 'READY'
 
 
@@ -287,11 +296,11 @@ class Sheeter(object):
 			if self.status == 'READY':
 				yield env.timeout(G.SHEETER_RUNTIME)
 				self.sheets += 1
-				print("{0} completed a sheet at {1}".format(self.name, env.now))
+				#print("{0} completed a sheet at {1}".format(self.name, env.now))
 				self.status = 'COMPLETE'
 
 	def unload_part(self, operator, env):
-		print("{0} unloaded a sheet at {1}".format(self.name, env.now))
+		#print("{0} unloaded a sheet at {1}".format(self.name, env.now))
 		self.status = 'READY'
 		
 
@@ -309,86 +318,153 @@ class Boxer(object):
 	def run(self):
 		while True:
 			if self.status == 'NO BOX':
-				yield env.process(self.build_box())
+				yield self.env.process(self.build_box())
 			
 			if self.status == 'READY':
 				yield self.raw_stock.get(1)
 				with self.operator.request() as opr:
-					yield env.timeout(G.BOX_PACKTIME)
+					yield self.env.timeout(G.BOX_PACKTIME)
 				yield self.finished_stock.put(1)
 			
 			if self.finished_stock.level == self.finished_stock.capacity:
-				yield env.process(self.close_box())
+				yield self.env.process(self.close_box())
 			
 	def build_box(self):
 		with self.operator.request() as opr:
 			yield opr
-			yield env.timeout(G.BOX_BUILDTIME)
+			yield self.env.timeout(G.BOX_BUILDTIME)
 			self.status = 'READY'
 	
 	def close_box(self):
 		with self.operator.request() as opr:
 			yield opr
-			yield env.timeout(G.BOX_CLOSETIME)
+			yield self.env.timeout(G.BOX_CLOSETIME)
 			self.status = 'NO BOX'
 		self.boxes += 1
-		print('Finished box number {0}'.format(self.boxes))
+		#print('Finished box number {0}'.format(self.boxes))
 		self.finished_stock.get(self.finished_stock.level)
 
 
+def main(user_input=False):
+	#Environment
+	env = simpy.Environment()
 
-#Environment
-env = simpy.Environment()
+	#Operators
+	main_ops = Operator(env, G.MAIN_OPERATORS)
+	sup_ops = Operator(env, G.SUPPORT_OPERATORS)
 
-#Operators
-main_ops = Operator(env, G.MAIN_OPERATORS)
-sup_ops = Operator(env, G.SUPPORT_OPERATORS)
+	#Containers
+	formed_sheet_stock = simpy.Container(env, G.FORMED_SHEET_STOCK_SIZE, init=0)
+	split_formed_stock = simpy.Container(env, G.SPLIT_FORMED_STOCK_SIZE, init=0)
+	routed_part_stock = simpy.Container(env, G.ROUTED_PART_STOCK_SIZE, init=0)
+	trimmed_part_stock = simpy.Container(env, G.TRIMMED_PART_STOCK_SIZE, init=0)
+	raw_sheet_stock = simpy.Container(env, G.RAW_SHEET_STOCK_SIZE, init=0)
+	finished_part_stock = simpy.Container(env, G.FINISHED_PART_STOCK_SIZE, init=0)
+	box = simpy.Container(env, G.BOX_SIZE, init=0)
 
-#Containers
-formed_sheet_stock = simpy.Container(env, G.FORMED_SHEET_STOCK_SIZE, init=0)
-split_formed_stock = simpy.Container(env, G.SPLIT_FORMED_STOCK_SIZE, init=0)
-routed_part_stock = simpy.Container(env, G.ROUTED_PART_STOCK_SIZE, init=0)
-trimmed_part_stock = simpy.Container(env, G.TRIMMED_PART_STOCK_SIZE, init=0)
-raw_sheet_stock = simpy.Container(env, G.RAW_SHEET_STOCK_SIZE, init=0)
-finished_part_stock = simpy.Container(env, G.FINISHED_PART_STOCK_SIZE, init=0)
-box = simpy.Container(env, G.BOX_SIZE, init=0)
+	#Thermoformers
+	station = simpy.PreemptiveResource(env, capacity=1)
+	load_station_one = Load_Station('Load Station 1', env, main_ops, station, raw_sheet_stock, formed_sheet_stock)
+	thermoformer_one = Thermoformer('Thermoformer 1', env, station, load_station_one)
 
-#Thermoformers
-station = simpy.PreemptiveResource(env, capacity=1)
-load_station_one = Load_Station('Load Station 1', env, main_ops, station, raw_sheet_stock, formed_sheet_stock)
-thermoformer_one = Thermoformer('Thermoformer 1', env, station, load_station_one)
+	#Formed sheet splitting operation
+	splitting_one = Splitter('Splitter 1', env, main_ops, formed_sheet_stock, split_formed_stock)
+		
+	#Automatic Sheeters
+	sheeter_one = Sheeter('Sheeter 1', env, main_ops, raw_sheet_stock)
 
-#Formed sheet splitting operation
-splitting_one = Splitter('Splitter 1', env, main_ops, formed_sheet_stock, split_formed_stock)
+	#Robotic Routers
+	router_one = Router('Router 1', env, main_ops, split_formed_stock, routed_part_stock)
+	router_two = Router('Router 2', env, sup_ops, split_formed_stock, routed_part_stock)
+	router_three = Router('Router 3', env, sup_ops, split_formed_stock, routed_part_stock)
+
+
+	#Hotwire Trimmer
+	trimmer_one = Hotwire_Trimmer('Hotwire trimmer 1', env, sup_ops, routed_part_stock, trimmed_part_stock)
+
+	#Driller
+	driller_one = Driller('Driller 1', env, sup_ops, trimmed_part_stock, finished_part_stock)
+
+	#Boxer
+	boxer_one = Boxer('Boxer 1', env, sup_ops, finished_part_stock, box)
+
+	env.run(until=G.SIMULATION_TIME)
+	if user_input == True:
+		print('\n\nResults:')
+		print('{0} produced {1} sheets'.format(sheeter_one.name, sheeter_one.sheets))
+		print('{0} produced {1} parts'.format(router_one.name, router_one. parts))
+		print('{0} produced {1} parts'.format(router_two.name, router_two. parts))
+		print('{0} produced {1} parts'.format(router_three.name, router_three. parts))
+		print('{0} produced {1} parts'.format(trimmer_one.name, trimmer_one.parts))
+		print('{0} produced {1} parts'.format(driller_one.name, driller_one.parts))
+		print('{0} produced {1} boxes'.format(boxer_one.name, boxer_one.boxes))
+		print('{0} missed {1} of {2} total cycles'.format(thermoformer_one.name, thermoformer_one.failures, thermoformer_one.cycles))
+		print('Effecitve cycle: {0: .1f}s, Average production rate: {1: .1f} parts/hr'.format(G.SIMULATION_TIME / (driller_one.parts / 2), driller_one.parts / (G.SIMULATION_TIME / 3600)))
 	
-#Automatic Sheeters
-sheeter_one = Sheeter('Sheeter 1', env, main_ops, raw_sheet_stock)
-
-#Robotic Routers
-router_one = Router('Router 1', env, sup_ops, split_formed_stock, routed_part_stock)
-router_two = Router('Router 2', env, sup_ops, split_formed_stock, routed_part_stock)
-router_three = Router('Router 3', env, sup_ops, split_formed_stock, routed_part_stock)
+	return driller_one.parts
 
 
-#Hotwire Trimmer
-trimmer_one = Hotwire_Trimmer('Hotwire trimmer 1', env, sup_ops, routed_part_stock, trimmed_part_stock)
+def cost_plot(cycle_times_arr, cost_arr, pcs_arr, title=None):
+	plt.subplot(121)
+	plt.plot(cycle_times_arr, cost_arr)
+	plt.ylabel("Program Cost")
+	plt.xlabel("Cycle Times")
+	
+	if title != None:
+		plt.suptitle(title)
+	
+	plt.subplot(122)
+	plt.plot(cycle_times_arr, pcs_arr, linestyle='dashed')
+	plt.ylabel("Pieces Produced per {0}s".format(G.SIMULATION_TIME))
+	plt.xlabel("Cycle Times")
+	
+	plt.subplots_adjust(left=0.2, wspace=0.8, top=0.8)
+	
+	keep_open=True
+	plt.show(block=keep_open)	#block=False to exit out of plots
+	if keep_open==False:
+		time.sleep(1)
+		plt.close()
 
-#Driller
-driller_one = Driller('Driller 1', env, sup_ops, trimmed_part_stock, finished_part_stock)
 
-#Boxer
-boxer_one = Boxer('Boxer 1', env, sup_ops, finished_part_stock, box)
+def cost_sim():
+	MIN_CYCLE = 50
+	STEP_COUNT = 100
+	STEP_SIZE = (G.THERMOFORMER_RUNTIME - MIN_CYCLE) / 100
+	cycle_times_arr = []
+	pcs_arr = []
+	cost_arr = []
+	best_cost = 0
+	labor_cost = G.SIMULATION_TIME / 3600 * (G.MACHINE_RATE + G.OVERHEAD_RATE 
+						+ (G.MAIN_OPERATORS + G.SUPPORT_OPERATORS) * G.OPERATOR_RATE)
+	
+	for i in range(STEP_COUNT):
+		pcs = main()
+		pcs_arr.append(pcs)
+		cycle_times_arr.append(G.THERMOFORMER_RUNTIME)
+		G.THERMOFORMER_RUNTIME -= STEP_SIZE
+		run_cost = pcs * G.SHEET_COST + labor_cost
+		print("run_cost: {0} pcs: {1}".format(run_cost, pcs))
+		program_cost = G.EAU * G.PROGRAM_LIFE / pcs * run_cost
+		if program_cost < best_cost or best_cost == 0:
+			best = G.THERMOFORMER_RUNTIME
+			best_cost = program_cost
+		
+		cost_arr.append(program_cost)		
+	#print("Cycles:\n{0}".format(cycle_times_arr))
+	#print("PCS:\n{0}".format(pcs_arr))
+	#print("Costs:\n{0}".format(cost_arr))
+	cost_plot(cycle_times_arr, cost_arr, pcs_arr, title="Tesla Monark Simulation Results (3 Oprs, 3 Robots) - Ideal Rate: {0: 0.0f}s, Program Cost: ${1: 0.0f}".format(best, best_cost))
+		
+		
 
-env.run(until=G.SIMULATION_TIME)
-print('\n\nResults:')
-print('{0} produced {1} sheets'.format(sheeter_one.name, sheeter_one.sheets))
-print('{0} produced {1} parts'.format(router_one.name, router_one. parts))
-print('{0} produced {1} parts'.format(router_two.name, router_two. parts))
-print('{0} produced {1} parts'.format(router_three.name, router_three. parts))
-print('{0} produced {1} parts'.format(trimmer_one.name, trimmer_one.parts))
-print('{0} produced {1} parts'.format(driller_one.name, driller_one.parts))
-print('{0} produced {1} boxes'.format(boxer_one.name, boxer_one.boxes))
-print('{0} missed {1} of {2} total cycles'.format(thermoformer_one.name, thermoformer_one.failures, thermoformer_one.cycles))
-print('Effecitve cycle: {0: .1f}s, Average production rate: {1: .1f} parts/hr'.format(G.SIMULATION_TIME / (driller_one.parts / 2), driller_one.parts / (G.SIMULATION_TIME / 3600)))
-
-
+if __name__ == '__main__':
+	cost_sim()
+	
+	
+	
+	
+	
+	
+	
+	

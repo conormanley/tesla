@@ -48,6 +48,9 @@ class Sheeter(object):
 
 class Thermoformer(object):
 	#3-Station thermoformer
+	#NOTE: delayed unloading of formed sheets won't stop the thermoformer
+	#		any excess sheets will be treated as 'offline' WIP to be processed
+	#		outside of the cell at a later time.
 	
 	def __init__(self, name, env, station, load_station, user_input=False):
 		self.station = station
